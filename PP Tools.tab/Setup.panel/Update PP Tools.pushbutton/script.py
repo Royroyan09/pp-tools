@@ -11,7 +11,15 @@ import tempfile
 import clr
 clr.AddReference("System.IO.Compression.FileSystem")
 
-from System.Net import WebClient, ServicePointManager, SecurityProtocolType
+# On .NET Framework hosts (Revit 2024 and older) WebClient lives in
+# System.dll and imports directly. On .NET Core hosts (Revit 2025+) it
+# moved to its own facade assembly that must be referenced first.
+try:
+    from System.Net import WebClient
+except ImportError:
+    clr.AddReference("System.Net.WebClient")
+    from System.Net import WebClient
+
 from System.IO.Compression import ZipFile
 
 from pyrevit import forms
@@ -27,9 +35,14 @@ VERSION_URL = "https://raw.githubusercontent.com/{0}/{1}/VERSION".format(
 ZIP_URL = "https://github.com/{0}/archive/refs/heads/{1}.zip".format(
     GITHUB_REPO, BRANCH)
 
-# GitHub raw/zip downloads require TLS 1.2, which is not on by default
-# in the .NET runtime pyRevit uses
-ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12
+# GitHub requires TLS 1.2. On .NET Framework 4.x it must be enabled
+# explicitly; on .NET Core hosts it is already the default and
+# ServicePointManager may not be importable at all - best effort only.
+try:
+    from System.Net import ServicePointManager, SecurityProtocolType
+    ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12
+except Exception:
+    pass
 
 
 def get_extension_root():
