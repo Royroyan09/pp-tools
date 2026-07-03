@@ -1,0 +1,7 @@
+title: Define Grid
+tooltip: >
+  Create Revit grids by typing names and spacing. Supports orthogonal
+  (X/Y) grids, radial grids (spokes and rings), fully custom straight
+  grids, and auto-generating grids from a layer in an imported/linked
+  CAD drawing.
+author: PP

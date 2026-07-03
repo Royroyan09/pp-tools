@@ -1,0 +1,5 @@
+title: Capture View
+tooltip: >
+  Screen-captures the active view's viewport (not the whole Revit
+  window) and saves it as a PNG file via a save dialog.
+author: PP

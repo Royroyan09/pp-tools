@@ -1,0 +1,425 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Define Grid" Height="760" Width="1180" MinHeight="580" MinWidth="980"
+        WindowStartupLocation="CenterScreen" ResizeMode="CanResizeWithGrip"
+        Background="#F3F5F8" FontFamily="Segoe UI" FontSize="13">
+
+    <Window.Resources>
+
+        <SolidColorBrush x:Key="PrimaryBrush" Color="#174FAD"/>
+        <SolidColorBrush x:Key="AccentBrush" Color="#FF9800"/>
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="BorderBrush1" Color="#E1E5EB"/>
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1F2937"/>
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#6B7280"/>
+        <SolidColorBrush x:Key="DangerBrush" Color="#D64545"/>
+
+        <Style x:Key="BaseButton" TargetType="Button">
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="Margin" Value="4,0,0,0"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.88"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+            <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush1}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        </Style>
+
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+        </Style>
+
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush1}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="6,5"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush1}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style TargetType="DataGrid">
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="CanUserAddRows" Value="False"/>
+            <Setter Property="CanUserDeleteRows" Value="False"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#EEF0F3"/>
+            <Setter Property="RowHeaderWidth" Value="0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="RowBackground" Value="White"/>
+            <Setter Property="AlternatingRowBackground" Value="#FAFBFC"/>
+            <Setter Property="VerticalGridLinesBrush" Value="Transparent"/>
+            <Setter Property="RowHeight" Value="30"/>
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#F5F7FA"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="Padding" Value="8,7"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush1}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="FontSize" Value="12.5"/>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="66"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="52"/>
+        </Grid.RowDefinitions>
+
+        <!-- ===================== HEADER ===================== -->
+        <Border Grid.Row="0" Background="{StaticResource PrimaryBrush}">
+            <Grid Margin="20,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Width="42" Height="42" CornerRadius="21"
+                        Background="White" VerticalAlignment="Center">
+                    <Image x:Name="imgLogo" Width="32" Height="32" Stretch="Uniform"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
+                    <TextBlock Text="Define Grid" Foreground="White" FontSize="17" FontWeight="SemiBold"/>
+                    <TextBlock Text="Orthogonal, radial, custom, or auto-generated from CAD" Foreground="#CFE0F7" FontSize="11.5"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <TextBlock x:Name="lblDocTitle" Text="Document" Foreground="White" FontSize="12.5"
+                               HorizontalAlignment="Right" FontWeight="SemiBold"/>
+                    <TextBlock Text="Revit Model" Foreground="#CFE0F7" FontSize="11" HorizontalAlignment="Right"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ===================== BODY ===================== -->
+        <TabControl x:Name="tabMain" Grid.Row="1" Margin="16,14,16,10" BorderThickness="0" Background="Transparent">
+
+            <!-- =============== ORTHOGONAL =============== -->
+            <TabItem x:Name="tabOrtho" Header="Orthogonal (X / Y)">
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Style="{StaticResource CardBorder}">
+                        <Grid Margin="14">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Grid Grid.Row="0" Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="GRIDS ALONG X (vertical lines)" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="btnAddOrthoX" Content="+ Add" Style="{StaticResource SecondaryButton}"/>
+                                    <Button x:Name="btnRemoveOrthoX" Content="Remove" Style="{StaticResource SecondaryButton}"/>
+                                </StackPanel>
+                            </Grid>
+                            <DataGrid x:Name="dgOrthoX" Grid.Row="1">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="#" Binding="{Binding Index}" IsReadOnly="True" Width="30"/>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name, Mode=TwoWay}" Width="*"/>
+                                    <DataGridTextColumn x:Name="colOrthoXSpacing" Header="Spacing" Binding="{Binding Spacing, Mode=TwoWay}" Width="110"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Column="2" Style="{StaticResource CardBorder}">
+                        <Grid Margin="14">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Grid Grid.Row="0" Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="GRIDS ALONG Y (horizontal lines)" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="btnAddOrthoY" Content="+ Add" Style="{StaticResource SecondaryButton}"/>
+                                    <Button x:Name="btnRemoveOrthoY" Content="Remove" Style="{StaticResource SecondaryButton}"/>
+                                </StackPanel>
+                            </Grid>
+                            <DataGrid x:Name="dgOrthoY" Grid.Row="1">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="#" Binding="{Binding Index}" IsReadOnly="True" Width="30"/>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name, Mode=TwoWay}" Width="*"/>
+                                    <DataGridTextColumn x:Name="colOrthoYSpacing" Header="Spacing" Binding="{Binding Spacing, Mode=TwoWay}" Width="110"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- =============== RADIAL =============== -->
+            <TabItem x:Name="tabRadial" Header="Radial">
+                <Grid Margin="0,10,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Style="{StaticResource CardBorder}" Margin="0,0,0,8">
+                        <WrapPanel Margin="14">
+                            <TextBlock Text="Center X" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="txtCenterX" Width="80" Text="0" Margin="0,0,16,0"/>
+                            <TextBlock Text="Center Y" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="txtCenterY" Width="80" Text="0" Margin="0,0,16,0"/>
+                            <TextBlock Text="Start angle (deg)" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="txtStartAngle" Width="70" Text="0" Margin="0,0,16,0"/>
+                            <TextBlock x:Name="lblSpokeLength" Text="Spoke length" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="txtSpokeLength" Width="90" Text="40" Margin="0,0,16,0"/>
+                            <TextBlock x:Name="lblRingStart" Text="Inner ring radius" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="txtRingStart" Width="90" Text="0"/>
+                        </WrapPanel>
+                    </Border>
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Style="{StaticResource CardBorder}">
+                            <Grid Margin="14">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Grid Grid.Row="0" Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="SPOKES (radial lines)" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button x:Name="btnAddSpoke" Content="+ Add" Style="{StaticResource SecondaryButton}"/>
+                                        <Button x:Name="btnRemoveSpoke" Content="Remove" Style="{StaticResource SecondaryButton}"/>
+                                    </StackPanel>
+                                </Grid>
+                                <DataGrid x:Name="dgSpokes" Grid.Row="1">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="#" Binding="{Binding Index}" IsReadOnly="True" Width="30"/>
+                                        <DataGridTextColumn Header="Name" Binding="{Binding Name, Mode=TwoWay}" Width="*"/>
+                                        <DataGridTextColumn Header="Angle spacing (deg)" Binding="{Binding Spacing, Mode=TwoWay}" Width="140"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="2" Style="{StaticResource CardBorder}">
+                            <Grid Margin="14">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Grid Grid.Row="0" Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="RINGS (concentric arcs)" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button x:Name="btnAddRing" Content="+ Add" Style="{StaticResource SecondaryButton}"/>
+                                        <Button x:Name="btnRemoveRing" Content="Remove" Style="{StaticResource SecondaryButton}"/>
+                                    </StackPanel>
+                                </Grid>
+                                <DataGrid x:Name="dgRings" Grid.Row="1">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="#" Binding="{Binding Index}" IsReadOnly="True" Width="30"/>
+                                        <DataGridTextColumn Header="Name" Binding="{Binding Name, Mode=TwoWay}" Width="*"/>
+                                        <DataGridTextColumn x:Name="colRingSpacing" Header="Radius spacing" Binding="{Binding Spacing, Mode=TwoWay}" Width="120"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- =============== CUSTOM =============== -->
+            <TabItem x:Name="tabCustom" Header="Custom">
+                <Border Style="{StaticResource CardBorder}" Margin="0,10,0,0">
+                    <Grid Margin="14">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0" Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="CUSTOM STRAIGHT GRIDS (explicit start/end coordinates)" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button x:Name="btnAddCustom" Content="+ Add" Style="{StaticResource SecondaryButton}"/>
+                                <Button x:Name="btnRemoveCustom" Content="Remove" Style="{StaticResource SecondaryButton}"/>
+                            </StackPanel>
+                        </Grid>
+                        <DataGrid x:Name="dgCustom" Grid.Row="1">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="#" Binding="{Binding Index}" IsReadOnly="True" Width="30"/>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name, Mode=TwoWay}" Width="*"/>
+                                <DataGridTextColumn x:Name="colCustomStartX" Header="Start X" Binding="{Binding StartX, Mode=TwoWay}" Width="100"/>
+                                <DataGridTextColumn x:Name="colCustomStartY" Header="Start Y" Binding="{Binding StartY, Mode=TwoWay}" Width="100"/>
+                                <DataGridTextColumn x:Name="colCustomEndX" Header="End X" Binding="{Binding EndX, Mode=TwoWay}" Width="100"/>
+                                <DataGridTextColumn x:Name="colCustomEndY" Header="End Y" Binding="{Binding EndY, Mode=TwoWay}" Width="100"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </Border>
+            </TabItem>
+
+            <!-- =============== AUTO FROM CAD =============== -->
+            <TabItem x:Name="tabAutoCad" Header="Auto from CAD">
+                <Grid Margin="0,10,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Style="{StaticResource CardBorder}" Margin="0,0,0,8">
+                        <Grid Margin="14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="260"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="260"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="CAD import" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox Grid.Column="1" x:Name="cmbCadImport" DisplayMemberPath="Display"/>
+                            <TextBlock Grid.Column="3" Text="Layer" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox Grid.Column="4" x:Name="cmbCadLayer" DisplayMemberPath="Display"/>
+                            <Button Grid.Column="6" x:Name="btnScanLayer" Content="Scan Layer" Style="{StaticResource PrimaryButton}"/>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="1" Style="{StaticResource CardBorder}">
+                        <Grid Margin="14">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="DETECTED GRID LINES (review / rename before creating)" Style="{StaticResource SectionLabel}"/>
+                            <DataGrid x:Name="dgCadPreview" Grid.Row="1">
+                                <DataGrid.Columns>
+                                    <DataGridCheckBoxColumn Header="Use" Binding="{Binding Include, Mode=TwoWay}" Width="40"/>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name, Mode=TwoWay}" Width="140"/>
+                                    <DataGridTextColumn Header="Start X" Binding="{Binding StartX}" IsReadOnly="True" Width="90"/>
+                                    <DataGridTextColumn Header="Start Y" Binding="{Binding StartY}" IsReadOnly="True" Width="90"/>
+                                    <DataGridTextColumn Header="End X" Binding="{Binding EndX}" IsReadOnly="True" Width="90"/>
+                                    <DataGridTextColumn Header="End Y" Binding="{Binding EndY}" IsReadOnly="True" Width="90"/>
+                                    <DataGridTextColumn Header="Source" Binding="{Binding Source}" IsReadOnly="True" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+
+                    <TextBlock Grid.Row="2" x:Name="lblCadInfo" Margin="2,8,2,0" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="11.5"
+                               Text="Pick a CAD import and layer, then Scan Layer. Straight lines on that layer become grid candidates. Names are read from CAD text when possible; otherwise they are auto-numbered — review and correct them before creating."/>
+                </Grid>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- ===================== FOOTER ===================== -->
+        <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource BorderBrush1}" BorderThickness="0,1,0,0">
+            <Grid Margin="16,0">
+                <TextBlock x:Name="lblStatus" Text="Ready." VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button x:Name="btnClose" Content="Close" Style="{StaticResource SecondaryButton}" Width="90"/>
+                    <Button x:Name="btnCreate" Content="Create Grids" Style="{StaticResource PrimaryButton}" Width="130"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+    </Grid>
+</Window>

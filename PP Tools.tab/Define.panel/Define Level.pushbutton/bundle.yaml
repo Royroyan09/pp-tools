@@ -1,0 +1,6 @@
+title: Define Level
+tooltip: >
+  Create one or more Revit levels by simply typing a name and an elevation.
+  Shows existing levels for reference and can auto-create a floor plan
+  view for each new level.
+author: PP

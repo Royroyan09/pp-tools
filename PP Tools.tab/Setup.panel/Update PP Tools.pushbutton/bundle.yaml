@@ -1,0 +1,5 @@
+title: Update PP Tools
+tooltip: >
+  Checks GitHub for a newer version of PP Tools. If one is available,
+  downloads it, installs it, and reloads pyRevit.
+author: PP
