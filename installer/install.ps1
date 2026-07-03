@@ -6,7 +6,7 @@
 $ErrorActionPreference = "Stop"
 
 # ------------------------------------------------------------- settings --
-$GithubRepo = "your-github-username/pp-tools"   # <-- EDIT THIS: owner/repo
+$GithubRepo = "Royroyan09/pp-tools"
 $Branch = "main"
 # --------------------------------------------------------------------------
 

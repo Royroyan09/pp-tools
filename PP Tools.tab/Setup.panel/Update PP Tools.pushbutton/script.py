@@ -18,7 +18,7 @@ from pyrevit import forms
 
 # ------------------------------------------------------------- settings --
 # GitHub repository that hosts this extension, as "owner/repo-name".
-GITHUB_REPO = "your-github-username/pp-tools"   # <-- EDIT THIS
+GITHUB_REPO = "Royroyan09/pp-tools"
 BRANCH = "main"
 # --------------------------------------------------------------------------
 
