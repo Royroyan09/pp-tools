@@ -168,6 +168,7 @@
                 <Grid Margin="16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
@@ -184,7 +185,16 @@
                         </StackPanel>
                     </Grid>
 
-                    <DataGrid x:Name="dgNewLevels" Grid.Row="1">
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+                        <TextBlock Text="Fill using:" Foreground="{StaticResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <RadioButton x:Name="radElevation" Content="Absolute elevation" GroupName="FillMode"
+                                     IsChecked="True" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                        <RadioButton x:Name="radSpacing" Content="Spacing from previous" GroupName="FillMode"
+                                     VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="dgNewLevels" Grid.Row="2">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="#" Binding="{Binding Index}" IsReadOnly="True" Width="34"/>
                             <DataGridTextColumn Header="Name" Binding="{Binding Name, Mode=TwoWay}" Width="*"/>
@@ -193,7 +203,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10,0,0">
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,0">
                         <CheckBox x:Name="chkCreateViews" Content="Create a Floor Plan view for each new level"
                                   IsChecked="True" VerticalAlignment="Center"/>
                     </StackPanel>

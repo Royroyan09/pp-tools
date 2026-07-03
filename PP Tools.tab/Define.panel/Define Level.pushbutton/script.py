@@ -148,17 +148,20 @@ class DefineLevelWindow(forms.WPFWindow):
         self._load_logo()
 
         unit_label = length_unit_label()
-        header = "Elevation ({})".format(unit_label) if unit_label else "Elevation"
-        self.colExistingElevation.Header = header
-        self.colNewElevation.Header = header
+        existing_header = "Elevation ({})".format(unit_label) if unit_label else "Elevation"
+        self.colExistingElevation.Header = existing_header
 
         self._load_existing_levels()
 
+        self._spacing_mode = False
+        self._update_elevation_header()
         self.dgNewLevels.ItemsSource = ObservableCollection[object]()
         self._add_row()
 
         self.btnAddRow.Click += self.on_add_row
         self.btnRemoveRow.Click += self.on_remove_row
+        self.radElevation.Checked += self.on_mode_changed
+        self.radSpacing.Checked += self.on_mode_changed
         self.btnCreate.Click += self.on_create
         self.btnClose.Click += self.on_close
 
@@ -197,11 +200,15 @@ class DefineLevelWindow(forms.WPFWindow):
     # Row management
     # ------------------------------------------------------------------
 
-    def _max_elevation_ft(self):
+    def _existing_max_elevation_ft(self):
         best = None
         for lv in getattr(self, '_existing_levels', []):
             if best is None or lv.Elevation > best:
                 best = lv.Elevation
+        return best if best is not None else 0.0
+
+    def _max_elevation_ft(self):
+        best = self._existing_max_elevation_ft()
         coll = self.dgNewLevels.ItemsSource
         if coll is not None:
             for row in coll:
@@ -209,9 +216,9 @@ class DefineLevelWindow(forms.WPFWindow):
                     ft = display_to_internal_length(row.Elevation)
                 except Exception:
                     continue
-                if best is None or ft > best:
+                if ft > best:
                     best = ft
-        return best if best is not None else 0.0
+        return best
 
     def _next_default_name(self):
         n = len(getattr(self, '_existing_levels', []))
@@ -222,8 +229,11 @@ class DefineLevelWindow(forms.WPFWindow):
 
     def _add_row(self):
         coll = self.dgNewLevels.ItemsSource
-        next_elev_ft = self._max_elevation_ft() + DEFAULT_STORY_HEIGHT_FT
-        row = NewLevelRow(coll.Count + 1, self._next_default_name(), fmt_length(next_elev_ft))
+        if self._spacing_mode:
+            default_val = fmt_length(DEFAULT_STORY_HEIGHT_FT)
+        else:
+            default_val = fmt_length(self._max_elevation_ft() + DEFAULT_STORY_HEIGHT_FT)
+        row = NewLevelRow(coll.Count + 1, self._next_default_name(), default_val)
         coll.Add(row)
 
     def on_add_row(self, sender, e):
@@ -242,13 +252,88 @@ class DefineLevelWindow(forms.WPFWindow):
         self.lblStatus.Text = "Ready."
 
     # ------------------------------------------------------------------
+    # Elevation / Spacing fill mode
+    # ------------------------------------------------------------------
+
+    def on_mode_changed(self, sender, e):
+        now_spacing = bool(self.radSpacing.IsChecked)
+        if now_spacing == self._spacing_mode:
+            return
+        self._convert_rows_for_mode(now_spacing)
+        self._spacing_mode = now_spacing
+        self._update_elevation_header()
+        self.lblStatus.Text = "Ready."
+
+    def _update_elevation_header(self):
+        unit_label = length_unit_label()
+        base = "Spacing" if self._spacing_mode else "Elevation"
+        self.colNewElevation.Header = "{} ({})".format(base, unit_label) if unit_label else base
+
+    def _convert_rows_for_mode(self, to_spacing):
+        coll = self.dgNewLevels.ItemsSource
+        if coll is None or coll.Count == 0:
+            return
+        baseline = self._existing_max_elevation_ft()
+        if to_spacing:
+            # rows currently hold absolute elevations -> convert to deltas
+            prev = baseline
+            for row in coll:
+                try:
+                    abs_ft = display_to_internal_length(row.Elevation)
+                except Exception:
+                    continue
+                row.Elevation = fmt_length(abs_ft - prev)
+                prev = abs_ft
+        else:
+            # rows currently hold deltas -> convert to absolute elevations
+            cum = baseline
+            for row in coll:
+                try:
+                    delta_ft = display_to_internal_length(row.Elevation)
+                except Exception:
+                    continue
+                cum += delta_ft
+                row.Elevation = fmt_length(cum)
+        self.dgNewLevels.Items.Refresh()
+
+    # ------------------------------------------------------------------
     # Create
     # ------------------------------------------------------------------
+
+    def _resolve_elevations(self, coll):
+        """Returns a list of (row, elev_ft) pairs, elev_ft is None for a row
+        whose text could not be parsed. In spacing mode this raises
+        ValueError on the first bad row instead, since every row after it
+        is cumulative and would otherwise resolve to a wrong elevation."""
+        resolved = []
+        if self._spacing_mode:
+            cum = self._existing_max_elevation_ft()
+            for row in coll:
+                try:
+                    delta_ft = display_to_internal_length(row.Elevation)
+                except Exception:
+                    raise ValueError("Row {}: invalid spacing '{}'.".format(row.Index, row.Elevation))
+                cum += delta_ft
+                resolved.append((row, cum))
+        else:
+            for row in coll:
+                try:
+                    elev_ft = display_to_internal_length(row.Elevation)
+                except Exception:
+                    elev_ft = None
+                resolved.append((row, elev_ft))
+        return resolved
 
     def on_create(self, sender, e):
         coll = self.dgNewLevels.ItemsSource
         if coll is None or coll.Count == 0:
             forms.alert("Add at least one level row first.")
+            return
+
+        try:
+            resolved = self._resolve_elevations(coll)
+        except ValueError as ex:
+            forms.alert(str(ex), title="Define Level")
             return
 
         create_views = bool(self.chkCreateViews.IsChecked)
@@ -260,14 +345,12 @@ class DefineLevelWindow(forms.WPFWindow):
         t = Transaction(doc, "Define Level: Create Levels")
         t.Start()
         try:
-            for row in coll:
+            for row, elev_ft in resolved:
                 name = (row.Name or "").strip()
                 if not name:
                     failed.append("Row {}: name is required.".format(row.Index))
                     continue
-                try:
-                    elev_ft = display_to_internal_length(row.Elevation)
-                except Exception:
+                if elev_ft is None:
                     failed.append("Row {}: invalid elevation '{}'.".format(row.Index, row.Elevation))
                     continue
 
