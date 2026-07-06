@@ -363,6 +363,10 @@
 
                     <Border Grid.Row="0" Style="{StaticResource CardBorder}" Margin="0,0,0,8">
                         <Grid Margin="14">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="260"/>
@@ -371,12 +375,22 @@
                                 <ColumnDefinition Width="260"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="CAD import" Style="{StaticResource FieldLabel}"/>
                             <ComboBox Grid.Column="1" x:Name="cmbCadImport" DisplayMemberPath="Display"/>
                             <TextBlock Grid.Column="3" Text="Layer" Style="{StaticResource FieldLabel}"/>
                             <ComboBox Grid.Column="4" x:Name="cmbCadLayer" DisplayMemberPath="Display"/>
-                            <Button Grid.Column="6" x:Name="btnScanLayer" Content="Scan Layer" Style="{StaticResource PrimaryButton}"/>
+                            <Button Grid.Column="6" x:Name="btnPickLayer" Content="Pick from CAD" Style="{StaticResource PrimaryButton}"/>
+                            <Button Grid.Column="7" x:Name="btnScanLayer" Content="Scan Layer" Style="{StaticResource SecondaryButton}"/>
+
+                            <StackPanel Grid.Row="1" Grid.ColumnSpan="8" Orientation="Horizontal" Margin="0,10,0,0">
+                                <TextBlock x:Name="lblMinLen" Text="Min line length" Style="{StaticResource FieldLabel}"/>
+                                <TextBox x:Name="txtMinLength" Width="90" Text="0"/>
+                                <TextBlock Text="Shorter lines are ignored — filters out text strokes and hatching in noisy drawings. Auto-set to half the picked line's length when you use Pick from CAD."
+                                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
+                                           VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
                         </Grid>
                     </Border>
 
@@ -403,7 +417,7 @@
 
                     <TextBlock Grid.Row="2" x:Name="lblCadInfo" Margin="2,8,2,0" TextWrapping="Wrap"
                                Foreground="{StaticResource TextSecondaryBrush}" FontSize="11.5"
-                               Text="Pick a CAD import and layer, then Scan Layer. Straight lines on that layer become grid candidates. Names are read from CAD text when possible; otherwise they are auto-numbered — review and correct them before creating."/>
+                               Text="Easiest way: click 'Pick from CAD', then click one grid line or grid text directly in the drawing — its layer is detected and scanned automatically. Or choose the import and layer by hand and click Scan Layer. Straight lines on the layer become grid candidates; names are read from nearby CAD text when possible, otherwise auto-numbered — review before creating."/>
                 </Grid>
             </TabItem>
 

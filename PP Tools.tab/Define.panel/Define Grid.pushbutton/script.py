@@ -8,6 +8,7 @@ auto-generating grids from a layer in an imported/linked CAD drawing.
 from __future__ import print_function
 
 import math
+import re
 
 import clr
 clr.AddReference('RevitAPI')
@@ -26,6 +27,7 @@ from Autodesk.Revit.DB import (
     SpecTypeId, UnitUtils, ImportInstance, Options, GeometryInstance,
     ElementId
 )
+from Autodesk.Revit.UI.Selection import ObjectType
 
 from pyrevit import revit, forms, script
 
@@ -125,6 +127,24 @@ DEFAULT_RING_SPACING_FT = 20.0    # prefilled when adding ring rows
 DEFAULT_SPOKE_LENGTH_FT = 40.0    # ~12 m; initial value of the spoke-length field
 EXTENT_MARGIN_FT = 5.0            # how far grid lines overshoot the outer grid
 FALLBACK_HALF_LEN_FT = 20.0       # used when a direction has no perpendicular grids
+DEFAULT_MIN_LINE_LEN_FT = 16.404199475  # 5 m; CAD-scan noise filter threshold
+
+
+def _dist_point_to_segment(pt, p0, p1):
+    """2D distance from pt to the segment p0-p1 (Z ignored)."""
+    vx, vy = p1.X - p0.X, p1.Y - p0.Y
+    wx, wy = pt.X - p0.X, pt.Y - p0.Y
+    seg_len2 = vx * vx + vy * vy
+    if seg_len2 < 1e-12:
+        return math.sqrt(wx * wx + wy * wy)
+    t = max(0.0, min(1.0, (wx * vx + wy * vy) / seg_len2))
+    dx = p0.X + t * vx - pt.X
+    dy = p0.Y + t * vy - pt.Y
+    return math.sqrt(dx * dx + dy * dy)
+
+
+def _segment_length(p0, p1):
+    return math.sqrt((p1.X - p0.X) ** 2 + (p1.Y - p0.Y) ** 2)
 
 
 def next_numeric_name(n):
@@ -224,6 +244,17 @@ class DefineGridWindow(forms.WPFWindow):
         self._add_custom_row()
 
         # --- Auto from CAD ---
+        # Set when the user clicks "Pick from CAD": the modal dialog closes,
+        # the entry-point loop runs PickObject (which cannot run while a
+        # modal window is open), then reopens the dialog with the picked
+        # layer selected and scanned.
+        self.pick_requested = False
+        # Model point the user clicked during Pick from CAD; consumed by the
+        # next scan to auto-tune the min-length filter off that grid line.
+        self._picked_point = None
+        unit_label = length_unit_label()
+        self.lblMinLen.Text = "Min line length ({})".format(unit_label) if unit_label else "Min line length"
+        self.txtMinLength.Text = fmt_length(DEFAULT_MIN_LINE_LEN_FT)
         self.dgCadPreview.ItemsSource = ObservableCollection[object]()
         self._load_cad_imports()
 
@@ -241,10 +272,16 @@ class DefineGridWindow(forms.WPFWindow):
         self.btnRemoveCustom.Click += lambda s, e: self._remove_row(self.dgCustom)
 
         self.cmbCadImport.SelectionChanged += self.on_cad_import_changed
+        self.btnPickLayer.Click += self.on_pick_layer
         self.btnScanLayer.Click += self.on_scan_layer
 
         self.btnCreate.Click += self.on_create
         self.btnClose.Click += self.on_close
+
+        # the initial SelectedIndex is set before events are wired, so the
+        # layer combo would otherwise stay empty until the user reselects
+        # the import by hand
+        self.on_cad_import_changed(None, None)
 
     # ------------------------------------------------------------------
 
@@ -501,6 +538,41 @@ class DefineGridWindow(forms.WPFWindow):
         if layers:
             self.cmbCadLayer.SelectedIndex = 0
 
+    def on_pick_layer(self, sender, e):
+        if not (self.cmbCadImport.ItemsSource or []):
+            forms.alert("No imported or linked CAD drawings were found in this model.")
+            return
+        # PickObject cannot run while this modal dialog is open, so hand
+        # control back to the entry-point loop, which picks and reopens.
+        self.pick_requested = True
+        self.Close()
+
+    def preselect_layer(self, import_id, layer_name, picked_pt=None):
+        """Called by the entry point after a pick-from-CAD: switches to the
+        Auto tab, selects the picked import + layer, and scans it. The
+        picked model point lets the scan auto-tune its min-length filter."""
+        self._picked_point = picked_pt
+        self.tabMain.SelectedItem = self.tabAutoCad
+        target = None
+        for item in (self.cmbCadImport.ItemsSource or []):
+            if item.Value.Id == import_id:
+                target = item
+                break
+        if target is None:
+            self.lblStatus.Text = "The picked CAD import could not be found."
+            return
+        self.cmbCadImport.SelectedItem = target  # repopulates the layer combo
+        layer_item = None
+        for item in (self.cmbCadLayer.ItemsSource or []):
+            if item.Display == layer_name:
+                layer_item = item
+                break
+        if layer_item is None:
+            self.lblStatus.Text = "Layer '{}' was not found on this import.".format(layer_name)
+            return
+        self.cmbCadLayer.SelectedItem = layer_item
+        self.on_scan_layer(None, None)
+
     def on_scan_layer(self, sender, e):
         cad_item = self.cmbCadImport.SelectedItem
         layer_item = self.cmbCadLayer.SelectedItem
@@ -533,6 +605,19 @@ class DefineGridWindow(forms.WPFWindow):
             return
 
         merged = self._cluster_lines(raw_lines)
+        total_merged = len(merged)
+        merged, dropped = self._apply_length_filter(merged)
+
+        if not merged:
+            self.dgCadPreview.ItemsSource = ObservableCollection[object]()
+            self.lblCadInfo.Text = (
+                "All {} detected line(s) on layer '{}' were shorter than the "
+                "minimum length ({}). Lower 'Min line length' and press "
+                "Scan Layer.".format(total_merged, layer_item.Display,
+                                     self.txtMinLength.Text))
+            self.lblStatus.Text = "Scan found 0 lines above the minimum length."
+            return
+
         rows = self._build_preview_rows(merged, raw_texts)
 
         coll = ObservableCollection[object]()
@@ -543,12 +628,48 @@ class DefineGridWindow(forms.WPFWindow):
                 matched += 1
         self.dgCadPreview.ItemsSource = coll
 
+        filter_note = ""
+        if dropped:
+            filter_note = " {} shorter line(s) were ignored (min length {}).".format(
+                dropped, self.txtMinLength.Text)
         self.lblCadInfo.Text = (
-            "Detected {} grid line(s) on layer '{}' ({} merged from {} raw segments). "
+            "Detected {} grid line(s) on layer '{}' (merged from {} raw segments).{} "
             "{} name(s) were read from CAD text; the rest were auto-numbered — "
             "please review before creating.".format(
-                len(rows), layer_item.Display, len(merged), len(raw_lines), matched))
+                len(rows), layer_item.Display, len(raw_lines), filter_note, matched))
         self.lblStatus.Text = "Scan complete: {} candidate line(s).".format(len(rows))
+
+    def _apply_length_filter(self, merged):
+        """Drops merged lines shorter than the min-length field. When the
+        user just picked a point on the CAD, the threshold is first
+        auto-set to half the length of the merged line nearest that point:
+        the picked line IS a grid line, so anything much shorter (text
+        strokes, hatching, symbols) is noise. Returns (kept, dropped)."""
+        if self._picked_point is not None:
+            pt = self._picked_point
+            self._picked_point = None
+            best, best_d = None, None
+            for p0, p1 in merged:
+                d = _dist_point_to_segment(pt, p0, p1)
+                if best_d is None or d < best_d:
+                    best, best_d = (p0, p1), d
+            if best is not None:
+                self.txtMinLength.Text = fmt_length(_segment_length(best[0], best[1]) * 0.5)
+
+        try:
+            min_len_ft = display_to_internal_length(self.txtMinLength.Text)
+        except Exception:
+            min_len_ft = 0.0
+        if min_len_ft <= 0:
+            return merged, 0
+
+        kept, dropped = [], 0
+        for p0, p1 in merged:
+            if _segment_length(p0, p1) >= min_len_ft:
+                kept.append((p0, p1))
+            else:
+                dropped += 1
+        return kept, dropped
 
     def _try_get_text_class(self):
         # Newer Revit API versions expose CAD text as Autodesk.Revit.DB.Text
@@ -749,10 +870,52 @@ class DefineGridWindow(forms.WPFWindow):
 if doc is None:
     forms.alert("No active Revit document.", exitscript=True)
 
+
+def _pick_cad_layer():
+    """Prompts the user to click a line or text on a CAD import in the
+    model; returns (import_element_id, layer_name, clicked_model_point),
+    or None on cancel."""
+    try:
+        ref = uidoc.Selection.PickObject(
+            ObjectType.PointOnElement,
+            "Pick a line or text on the CAD drawing (Esc to cancel)")
+    except Exception:
+        return None
+
+    elem = doc.GetElement(ref)
+    if not isinstance(elem, ImportInstance):
+        forms.alert("The picked element is not part of an imported/linked "
+                    "CAD drawing. Pick a line or text on the CAD.",
+                    title="Define Grid")
+        return None
+    try:
+        geo = elem.GetGeometryObjectFromReference(ref)
+        gs = doc.GetElement(geo.GraphicsStyleId)
+        layer_name = gs.GraphicsStyleCategory.Name
+    except Exception as ex:
+        _safe_log("_pick_cad_layer failed: {}".format(ex))
+        forms.alert("Could not read the layer of the picked object.",
+                    title="Define Grid")
+        return None
+    picked_pt = getattr(ref, 'GlobalPoint', None)
+    return (elem.Id, layer_name, picked_pt)
+
+
 try:
     xaml_file = script.get_bundle_file('ui.xaml')
-    window = DefineGridWindow(xaml_file)
-    window.ShowDialog()
+    # The dialog is modal, so element picking has to happen between dialog
+    # sessions: "Pick from CAD" closes the window with pick_requested set,
+    # we pick here, then reopen with the picked layer selected and scanned.
+    pending_pick = None
+    while True:
+        window = DefineGridWindow(xaml_file)
+        if pending_pick is not None:
+            window.preselect_layer(pending_pick[0], pending_pick[1], pending_pick[2])
+            pending_pick = None
+        window.ShowDialog()
+        if not window.pick_requested:
+            break
+        pending_pick = _pick_cad_layer()
 except Exception as ex:
     import traceback
     _safe_log("Entry point failed: {}\n{}".format(ex, traceback.format_exc()))
