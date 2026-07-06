@@ -1,0 +1,8 @@
+title: Auto Foundation
+tooltip: >
+  Auto-generate 3D structural foundations from an imported/linked DWG.
+  Pick the perimeter layer (closed polylines) and the label layer (F1,
+  F2, ...), review one foundation type per unique label with Width and
+  Length read from the drawing, fill in Thickness, choose a level and
+  generate. v1 handles rectangular isolated pad footings.
+author: PP
