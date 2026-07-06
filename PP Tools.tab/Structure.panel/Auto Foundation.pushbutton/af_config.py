@@ -88,9 +88,10 @@ LABEL_REGEX = None
 
 LABEL_UPPERCASE = True
 
-# Max distance (mm) for the nearest-centroid fallback when a label's
-# insertion point is not inside any perimeter (None = no limit).
-LABEL_MAX_DISTANCE_MM = None
+# Max distance (mm) from a footing's edge for the pairing fallback when
+# a label's insertion point is not inside any perimeter. Keeps texts in
+# legend tables / title blocks from being matched (None = no limit).
+LABEL_MAX_DISTANCE_MM = 15000.0
 
 # Footprints that end up with no label are grouped by (rounded) size and
 # named with this format.

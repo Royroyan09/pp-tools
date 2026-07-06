@@ -44,6 +44,7 @@ if _BUNDLE_DIR not in sys.path:
     sys.path.insert(0, _BUNDLE_DIR)
 
 import af_config as cfg
+import af_dxf
 import af_kinds
 
 
@@ -514,8 +515,19 @@ class AutoFoundationWindow(forms.WPFWindow):
             self.lblStatus.Text = "Scan found 0 footings."
             return
 
+        raw_texts = [(pos.X, pos.Y, val) for pos, val in texts]
+        text_source = "CAD geometry"
+        if not raw_texts:
+            # Revit's geometry API does not expose DWG text; round-trip
+            # the active view through a DXF export instead (af_dxf)
+            try:
+                raw_texts = af_dxf.read_cad_texts(doc, label_item.Display)
+                text_source = "DXF export"
+            except Exception as ex:
+                _safe_log("DXF text fallback failed: {}".format(ex))
+
         clean_texts = []
-        for pos, val in texts:
+        for tx, ty, val in raw_texts:
             v = (val or u"").strip()
             if cfg.LABEL_UPPERCASE:
                 v = v.upper()
@@ -523,7 +535,7 @@ class AutoFoundationWindow(forms.WPFWindow):
                 continue
             if cfg.LABEL_REGEX and not re.match(cfg.LABEL_REGEX, v):
                 continue
-            clean_texts.append((pos.X, pos.Y, v))
+            clean_texts.append((tx, ty, v))
 
         matched = self._kind.match_labels(footprints, clean_texts)
         self._groups = self._kind.group_footprints(footprints)
@@ -561,15 +573,16 @@ class AutoFoundationWindow(forms.WPFWindow):
         self._saved_rows = {}
 
         text_note = ""
-        if DBText is None and texts == []:
-            text_note = (" NOTE: CAD text could not be read on this Revit "
-                         "version; footings were grouped by size instead.")
+        if not clean_texts:
+            text_note = (" NOTE: no CAD text could be read (geometry API and "
+                         "DXF export both empty); footings were grouped by "
+                         "size instead.")
         self.lblInfo.Text = (
             "Found {} footing(s) in {} type group(s) on layer '{}'; {} labelled "
-            "from CAD text on layer '{}' ({} text entities read).{}{} Review the "
+            "from CAD text ({} text entities via {}).{}{} Review the "
             "sizes, fill in Thickness and click Generate.".format(
                 len(footprints), coll.Count, perim_item.Display, matched,
-                label_item.Display, len(clean_texts),
+                len(clean_texts), text_source,
                 " {} outline(s) were filtered out by size.".format(skipped) if skipped else "",
                 text_note))
         self.lblStatus.Text = "Scan complete: {} footing(s), {} type(s).".format(
