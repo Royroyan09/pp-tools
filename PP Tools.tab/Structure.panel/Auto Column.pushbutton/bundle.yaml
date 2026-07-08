@@ -1,0 +1,10 @@
+title: Auto Column
+tooltip: >
+  Auto-generate 3D structural columns from an imported/linked DWG.
+  Pick the perimeter layer (circles, rectangles, or steel profile
+  outlines — one per column) and the label layer, review one column
+  type per unique label with material (concrete/steel), section, and
+  vertical extents, choose a base level and generate. Columns run
+  upward from their level to the next level above (or an unconnected
+  height), and concrete columns auto-join to overlapping floors/framing.
+author: PP

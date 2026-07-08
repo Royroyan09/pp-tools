@@ -1,0 +1,9 @@
+title: Auto Pile
+tooltip: >
+  Auto-generate 3D structural piles from an imported/linked DWG.
+  Pick the perimeter layer (circles, closed polylines, or block
+  references — one per pile) and the label layer (P1, P2, ...), review
+  one pile type per unique label with Diameter or Side read from the
+  drawing, fill in Depth, choose a level and generate. Piles are placed
+  with their TOP at the level, extending downward by Depth.
+author: PP

@@ -1,0 +1,443 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Auto Beam" Height="940" Width="1100" MinHeight="680" MinWidth="900"
+        WindowStartupLocation="CenterScreen" ResizeMode="CanResizeWithGrip"
+        WindowState="Maximized"
+        Background="#F3F5F8" FontFamily="Segoe UI" FontSize="13">
+
+    <Window.Resources>
+
+        <SolidColorBrush x:Key="PrimaryBrush" Color="#174FAD"/>
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="BorderBrush1" Color="#E1E5EB"/>
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1F2937"/>
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#6B7280"/>
+
+        <Style x:Key="BaseButton" TargetType="Button">
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="Margin" Value="4,0,0,0"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.88"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+            <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush1}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        </Style>
+
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush1}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style TargetType="RadioButton">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,18,0"/>
+        </Style>
+
+        <Style TargetType="DataGrid">
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="CanUserAddRows" Value="False"/>
+            <Setter Property="CanUserDeleteRows" Value="False"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#EEF0F3"/>
+            <Setter Property="RowHeaderWidth" Value="0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="RowBackground" Value="White"/>
+            <Setter Property="AlternatingRowBackground" Value="#FAFBFC"/>
+            <Setter Property="VerticalGridLinesBrush" Value="Transparent"/>
+            <Setter Property="RowHeight" Value="28"/>
+            <Setter Property="IsReadOnly" Value="True"/>
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#F5F7FA"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="Padding" Value="8,7"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush1}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        </Style>
+
+        <Style x:Key="ReportTabItem" TargetType="TabItem">
+            <Setter Property="Padding" Value="16,9"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="bd" Background="Transparent" BorderBrush="{StaticResource PrimaryBrush}"
+                                BorderThickness="0,0,0,2" Margin="0,0,4,0">
+                            <ContentPresenter ContentSource="Header" Margin="{TemplateBinding Padding}"
+                                               VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="BorderThickness" Value="0,0,0,2"/>
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="False">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="Transparent"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}"
+                                    BorderBrush="{StaticResource BorderBrush1}" BorderThickness="1,1,1,1"
+                                    CornerRadius="6,6,0,0" Padding="10,8,10,0">
+                                <TabPanel IsItemsHost="True"/>
+                            </Border>
+                            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush1}"
+                                    BorderThickness="1,0,1,1" CornerRadius="0,0,6,6">
+                                <ContentPresenter ContentSource="SelectedContent" Margin="14"/>
+                            </Border>
+                        </DockPanel>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="66"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="52"/>
+        </Grid.RowDefinitions>
+
+        <!-- ===================== HEADER ===================== -->
+        <Border Grid.Row="0" Background="{StaticResource PrimaryBrush}">
+            <Grid Margin="20,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Width="42" Height="42" CornerRadius="21"
+                        Background="White" VerticalAlignment="Center">
+                    <Image x:Name="imgLogo" Width="32" Height="32" Stretch="Uniform"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
+                    <TextBlock Text="Auto Beam" Foreground="White" FontSize="17" FontWeight="SemiBold"/>
+                    <TextBlock Text="Structural framing generated from a CAD drawing" Foreground="#CFE0F7" FontSize="11.5"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <TextBlock x:Name="lblDocTitle" Text="Document" Foreground="White" FontSize="12.5"
+                               HorizontalAlignment="Right" FontWeight="SemiBold"/>
+                    <TextBlock Text="Revit Model" Foreground="#CFE0F7" FontSize="11" HorizontalAlignment="Right"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ===================== BODY ===================== -->
+        <Grid Grid.Row="1" Margin="16,14,16,10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- ===== SOURCE ===== -->
+            <Border Grid.Row="0" Style="{StaticResource CardBorder}" Margin="0,0,0,8">
+                <Grid Margin="14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="CAD SOURCE" Style="{StaticResource SectionLabel}"/>
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="CAD import" Style="{StaticResource FieldLabel}"/>
+                        <ComboBox Grid.Column="1" x:Name="cmbCadImport" DisplayMemberPath="Display"/>
+
+                        <TextBlock Grid.Column="3" Text="Beam layer" Style="{StaticResource FieldLabel}"/>
+                        <ComboBox Grid.Column="4" x:Name="cmbBeamLayer" DisplayMemberPath="Display"/>
+                        <Button Grid.Column="5" x:Name="btnPickLayer" Content="Pick Layer" Style="{StaticResource SecondaryButton}"/>
+
+                        <Button Grid.Column="7" x:Name="btnApply" Content="Apply" Style="{StaticResource PrimaryButton}" Width="100"/>
+                    </Grid>
+
+                    <Grid Grid.Row="2" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Column layer (optional)" Style="{StaticResource FieldLabel}"/>
+                        <ComboBox Grid.Column="1" x:Name="cmbColumnLayer" DisplayMemberPath="Display"/>
+                        <Button Grid.Column="2" x:Name="btnPickColumnLayer" Content="Pick Layer" Style="{StaticResource SecondaryButton}"/>
+                    </Grid>
+
+                    <Grid Grid.Row="3" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" x:Name="lblLabelLayer" Text="Label layer" Style="{StaticResource FieldLabel}"/>
+                        <ComboBox Grid.Column="1" x:Name="cmbLabelLayer" DisplayMemberPath="Display"/>
+                        <Button Grid.Column="2" x:Name="btnPickLabel" Content="Pick Label" Style="{StaticResource SecondaryButton}"/>
+                    </Grid>
+
+                    <CheckBox Grid.Row="4" x:Name="chkNoLabels" Margin="0,8,0,0" VerticalContentAlignment="Center"
+                              Content="No labels in this CAD — group beams purely by shape/size (skips label matching and material-by-label; everything lands UNCLASSIFIED unless the layer name alone is conclusive)"/>
+
+                    <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock Text="Mode:" Style="{StaticResource FieldLabel}"/>
+                        <RadioButton x:Name="radTwoLine" GroupName="mode" Content="2-line (parallel edges pair into a centerline + width)" IsChecked="True"/>
+                        <RadioButton x:Name="radOneLine" GroupName="mode" Content="1-line (the drawn line IS the centerline; width comes later)"/>
+                    </StackPanel>
+
+                    <Grid Grid.Row="6" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Is there a beam table?" Style="{StaticResource FieldLabel}"/>
+                        <RadioButton Grid.Column="1" x:Name="radTableNo" GroupName="table" Content="No" IsChecked="True"/>
+                        <RadioButton Grid.Column="2" x:Name="radTableYes" GroupName="table" Content="Yes"/>
+                        <Button Grid.Column="3" x:Name="btnPickTableRegion" Content="Pick Table Region"
+                                Style="{StaticResource SecondaryButton}" IsEnabled="False"/>
+                    </Grid>
+
+                    <TextBlock Grid.Row="7" x:Name="lblInfo" Margin="0,10,0,0" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="11.5"
+                               Text="Click 'Pick Layer' and pick a beam line in the drawing (or choose it from the dropdown), choose 2-line or 1-line mode, optionally pick a column layer so beams stay continuous through columns, pick a label layer (or check 'No labels'). If there's a beam schedule table, check 'Yes' and window-pick around it -- b/h auto-fill from it in the next milestone."/>
+                </Grid>
+            </Border>
+
+            <!-- ===== REPORTS (tabbed, each grid gets the full available height) ===== -->
+            <TabControl Grid.Row="1" Margin="0,0,0,8">
+
+                <TabItem Header="BEAM TYPES" Style="{StaticResource ReportTabItem}" IsSelected="True">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="BEAM TYPES (one row per label -- edit Material/b/h/Section here before Generate)" Style="{StaticResource SectionLabel}"/>
+
+                        <Grid Grid.Row="1" Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="h (mm)" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Grid.Column="1" x:Name="txtBatchH"/>
+                            <Button Grid.Column="2" x:Name="btnBatchFillH" Content="Fill Selected Rows"
+                                    Style="{StaticResource SecondaryButton}"
+                                    ToolTip="Select rows in the grid below (Ctrl/Shift-click), type an h value above, then click this to fill it into every selected row at once -- useful when there's no beam table and h has no CAD source."/>
+                        </Grid>
+
+                        <DataGrid x:Name="dgTypes" Grid.Row="2">
+                            <DataGrid.Columns>
+                                <DataGridCheckBoxColumn Header="Use" Binding="{Binding Include, Mode=TwoWay}" Width="36"/>
+                                <DataGridTextColumn Header="Type (label)" Binding="{Binding Label}" IsReadOnly="True" Width="90"/>
+                                <DataGridTextColumn Header="Spans" Binding="{Binding Count}" IsReadOnly="True" Width="50"/>
+                                <DataGridComboBoxColumn x:Name="colTypeMaterial" Header="Material"
+                                                         SelectedItemBinding="{Binding Material, Mode=TwoWay}" Width="110"/>
+                                <DataGridTextColumn Header="Why" Binding="{Binding MaterialNote}" IsReadOnly="True" Width="170"/>
+                                <DataGridTextColumn Header="b (mm)" Binding="{Binding BText, Mode=TwoWay}" Width="80"/>
+                                <DataGridTextColumn Header="h (mm)" Binding="{Binding HText, Mode=TwoWay}" Width="80"/>
+                                <DataGridTextColumn Header="Size source" Binding="{Binding SizeNote}" IsReadOnly="True" Width="220"/>
+                                <DataGridTextColumn Header="Section (steel/timber)" Binding="{Binding Section, Mode=TwoWay}" Width="130"/>
+                                <DataGridTextColumn Header="Note" Binding="{Binding Note}" IsReadOnly="True" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="CONTINUOUS SPANS" Style="{StaticResource ReportTabItem}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="CONTINUOUS SPANS (one row per stitched beam, before grouping into types)" Style="{StaticResource SectionLabel}"/>
+                        <DataGrid x:Name="dgCenterlines" Grid.Row="1">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="36"/>
+                                <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="70"/>
+                                <DataGridTextColumn Header="Material" Binding="{Binding Material}" Width="90"/>
+                                <DataGridTextColumn Header="Why" Binding="{Binding MaterialNote}" Width="180"/>
+                                <DataGridTextColumn Header="Sources" Binding="{Binding Sources}" Width="70"/>
+                                <DataGridTextColumn Header="Start (mm)" Binding="{Binding StartText}" Width="140"/>
+                                <DataGridTextColumn Header="End (mm)" Binding="{Binding EndText}" Width="140"/>
+                                <DataGridTextColumn Header="Length (mm)" Binding="{Binding LengthText}" Width="90"/>
+                                <DataGridTextColumn Header="Width (mm)" Binding="{Binding WidthText}" Width="90"/>
+                                <DataGridTextColumn Header="Note" Binding="{Binding Note}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="MERGES MADE" Style="{StaticResource ReportTabItem}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="MERGES MADE (which raw segments were stitched together, and why)" Style="{StaticResource SectionLabel}"/>
+                        <DataGrid x:Name="dgMerges" Grid.Row="1">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Segments" Binding="{Binding Pair}" Width="90"/>
+                                <DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="140"/>
+                                <DataGridTextColumn Header="Gap (mm)" Binding="{Binding GapText}" Width="90"/>
+                                <DataGridTextColumn Header="Bridging column at (mm)" Binding="{Binding ColumnText}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="BEAM TABLE" Style="{StaticResource ReportTabItem}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" x:Name="lblTableInfo" Text="BEAM TABLE (not picked yet -- check 'Yes' above and 'Pick Table Region' around the schedule)" Style="{StaticResource SectionLabel}"/>
+                        <DataGrid x:Name="dgTable" Grid.Row="1">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Label" Binding="{Binding Label, Mode=TwoWay}" Width="90" IsReadOnly="False"/>
+                                <DataGridTextColumn Header="b (mm)" Binding="{Binding BText, Mode=TwoWay}" Width="90" IsReadOnly="False"/>
+                                <DataGridTextColumn Header="h (mm)" Binding="{Binding HText, Mode=TwoWay}" Width="90" IsReadOnly="False"/>
+                                <DataGridTextColumn Header="Note" Binding="{Binding Note}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </TabItem>
+
+            </TabControl>
+
+            <!-- ===== PLACEMENT ===== -->
+            <Border Grid.Row="2" Style="{StaticResource CardBorder}">
+                <Grid Margin="14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="240"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Level" Style="{StaticResource FieldLabel}"/>
+                    <ComboBox Grid.Column="1" x:Name="cmbLevel" DisplayMemberPath="Display"/>
+                    <TextBlock Grid.Column="3" x:Name="lblFamilyInfo" TextWrapping="Wrap" VerticalAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="11.5"
+                               Text="Beams run at this level with their TOP flush to it (Z-justification Top)."/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ===================== FOOTER ===================== -->
+        <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource BorderBrush1}" BorderThickness="0,1,0,0">
+            <Grid Margin="16,0">
+                <TextBlock x:Name="lblStatus" Text="Ready." VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button x:Name="btnClose" Content="Close" Style="{StaticResource SecondaryButton}" Width="90"/>
+                    <Button x:Name="btnGenerate" Content="Generate Beams" Style="{StaticResource PrimaryButton}" Width="150"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+    </Grid>
+</Window>

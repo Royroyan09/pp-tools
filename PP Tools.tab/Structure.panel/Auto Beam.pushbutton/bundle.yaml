@@ -1,0 +1,10 @@
+title: Auto Beam
+tooltip: >
+  Auto-generate 3D structural framing (beams) from an imported/linked
+  DWG. Pick the beam layer (2-line edge-pairing or a single centerline
+  line) and the label layer, review one beam type per unique label
+  with material (concrete/steel/timber), size/section, and continuity
+  through columns, choose a level and generate. Beams run with their
+  TOP flush to the level, and concrete beams auto-join to overlapping
+  columns and floors.
+author: PP

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""CAD text reader for Auto Foundation.
+"""CAD text reader shared by every auto-modelling tool.
 
 Revit's geometry API does not expose text entities from imported or
 linked DWGs at all (there is no text geometry class in current API
@@ -17,9 +17,9 @@ import math
 import os
 import re
 
-MM_TO_FT = 1.0 / 304.8
+from pp_common.config_base import MM_TO_FT
 
-_EXPORT_NAME = "pp_af_texts"
+_EXPORT_NAME = "pp_common_texts"
 
 
 # ---------------------------------------------------------------------------
@@ -66,7 +66,7 @@ def _export_active_view(doc):
         pass
     try:
         # export around the project internal origin so DXF coordinates
-        # line up with the model coordinates the footprints were read in
+        # line up with the model coordinates the shapes were read in
         opts.SharedCoords = False
     except Exception:
         pass
@@ -108,10 +108,6 @@ def _read_pairs(path):
         lines = [l.rstrip('\r\n') for l in f]
     return [(lines[i].strip(), lines[i + 1])
             for i in range(0, len(lines) - 1, 2)]
-
-
-def _identity():
-    return (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)  # a b c d e f: x'=ax+by+e
 
 
 def _apply(m, x, y):

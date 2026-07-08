@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Auto Foundation
+"""Auto Pile
 
-Auto-generate 3D structural foundations from an imported/linked DWG:
-pick the perimeter layer (closed polylines, one per footing) and the
-label layer (F1, F2, ...), review one foundation type per unique label
-with Width/Length read from the drawing, fill in Thickness, choose a
-level and generate. v1 handles rectangular isolated pad footings; other
-kinds plug into af_kinds / af_config.
+Auto-generate 3D structural piles from an imported/linked DWG: pick the
+perimeter layer (circles, closed polylines, or block references, one
+per pile) and the label layer (or check "No labels" to group purely by
+size), review one pile type per unique label with Diameter (round) or
+Width/Length (square) read from the drawing, fill in Depth, choose a
+level and generate. Round piles use M_Pile_Beton (or equivalent) from
+Revit's library; square piles use the bundled PP_Pile-Square-Concrete
+family, auto-rotated to match the CAD outline. Custom (non-circular,
+non-rectangular) outlines are classified but not yet generated — see
+ap_kinds.CustomPileFamily.
 
-CAD reading, shape geometry, label matching and placement are shared
-with other Structure-panel tools via the extension's pp_common lib.
+CAD reading, label matching and placement are shared with Auto
+Foundation via the extension's pp_common lib.
 """
 from __future__ import print_function
 
@@ -28,9 +32,7 @@ from System.IO import FileStream, FileMode, FileAccess
 from System.Windows.Media.Imaging import BitmapImage, BitmapCacheOption
 from System.Collections.ObjectModel import ObservableCollection
 
-from Autodesk.Revit.DB import (
-    FilteredElementCollector, Transaction, Level, Options
-)
+from Autodesk.Revit.DB import FilteredElementCollector, Level, Options, Transaction
 
 from pyrevit import revit, forms, script
 
@@ -38,7 +40,6 @@ doc = revit.doc
 uidoc = revit.uidoc
 logger = script.get_logger()
 
-# the bundle folder holds af_config / af_kinds; make sure it's importable
 _BUNDLE_DIR = os.path.dirname(__file__)
 if _BUNDLE_DIR not in sys.path:
     sys.path.insert(0, _BUNDLE_DIR)
@@ -46,9 +47,8 @@ if _BUNDLE_DIR not in sys.path:
 
 def _find_extension_lib_dir(start_dir):
     """Walks upward from start_dir to the enclosing '*.extension'
-    folder and returns its 'lib' subfolder. Done by hand (rather than
-    relying only on pyRevit's own auto-added lib path) so this bootstrap
-    also works when a bundle module is run standalone for testing."""
+    folder and returns its 'lib' subfolder. See Auto Foundation's
+    script.py for the twin copy of this bootstrap."""
     d = os.path.abspath(start_dir)
     for _ in range(8):
         if d.lower().endswith(".extension"):
@@ -64,13 +64,15 @@ _LIB_DIR = _find_extension_lib_dir(_BUNDLE_DIR)
 if _LIB_DIR and _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 
-import af_config as cfg
-import af_kinds
+import ap_config as cfg
+import ap_shapes
+import ap_kinds
 from pp_common import cad_read
 from pp_common import units as pp_units
 from pp_common import logging_util as pp_logging
-from pp_common import dxf_text as af_dxf
-from pp_common.geometry import Footprint, chain_lines_to_loops, round_dimension_mm
+from pp_common import dxf_text as pp_dxf
+from pp_common.config_base import MM_TO_FT
+from pp_common.geometry import round_dimension_mm
 from pp_common.wpf_helpers import (
     ComboItem, LayerSelection, set_layer_selection, select_layers_by_name)
 
@@ -84,17 +86,16 @@ def _safe_log(msg):
 
 
 # ---------------------------------------------------------------------------
-# IronPython-safe Element.Name accessor / unit helpers (delegated to
-# pp_common; kept as module-level wrappers so the rest of this file's
-# call sites don't need to pass doc around)
+# Unit helpers (delegated to pp_common; module-level wrappers so call
+# sites below don't need to pass doc around)
 # ---------------------------------------------------------------------------
 
 def get_name(element):
     return pp_units.get_name(element)
 
 
-def get_length_unit_type_id():
-    return pp_units.get_length_unit_type_id(doc)
+def length_unit_label():
+    return pp_units.length_unit_label(doc)
 
 
 def internal_to_display_length(value_ft):
@@ -103,14 +104,6 @@ def internal_to_display_length(value_ft):
 
 def display_to_internal_length(text):
     return pp_units.display_to_internal_length(doc, text)
-
-
-def length_unit_label():
-    return pp_units.length_unit_label(doc)
-
-
-def fmt_num(value):
-    return pp_units.fmt_num(value)
 
 
 def fmt_length(value_ft):
@@ -122,15 +115,16 @@ def fmt_length(value_ft):
 # ---------------------------------------------------------------------------
 
 class TypeRow(object):
-    def __init__(self, label, count, shape, width_text, length_text,
-                 thickness_text, note=""):
+    def __init__(self, label, count, shape, size1_text, size2_text,
+                 depth_text, named_via, note=""):
         self.Include = True
         self.Label = label
         self.Count = count
-        self.Shape = shape  # 'Rectangle' or 'Custom'
-        self.Width = width_text
-        self.Length = length_text
-        self.Thickness = thickness_text
+        self.Shape = shape          # 'Circle' | 'Square' | 'Custom'
+        self.Size1 = size1_text     # Diameter (circle) or Width (square/custom)
+        self.Size2 = size2_text     # blank for circle/true-square
+        self.Depth = depth_text
+        self.NamedVia = named_via   # 'CAD text' | 'size-derived'
         self.Note = note
 
 
@@ -138,7 +132,7 @@ class TypeRow(object):
 # Main window
 # ---------------------------------------------------------------------------
 
-class AutoFoundationWindow(forms.WPFWindow):
+class AutoPileWindow(forms.WPFWindow):
 
     def __init__(self, xaml_file):
         forms.WPFWindow.__init__(self, xaml_file)
@@ -153,17 +147,17 @@ class AutoFoundationWindow(forms.WPFWindow):
         self.pick_requested = None
         self.saved_state = None
 
-        self._kind = af_kinds.IsolatedFooting()
-        self._kind_custom = af_kinds.CustomPadFooting()
-        # label -> [Footprint], filled by Apply, consumed by Generate
+        self._round_kind = ap_kinds.RoundPileFamily()
+        self._square_kind = ap_kinds.SquarePileFamily()
+        # label -> [shape], filled by Apply, consumed by Generate
         self._groups = {}
         # row edits captured before a pick, reapplied after the re-scan
         self._saved_rows = {}
 
         unit_label = length_unit_label()
-        for col, base in ((self.colWidth, "Width"),
-                          (self.colLength, "Length"),
-                          (self.colThickness, "Thickness")):
+        for col, base in ((self.colSize1, "Diameter / Width"),
+                          (self.colSize2, "Length (if not square)"),
+                          (self.colDepth, "Depth")):
             col.Header = "{} ({})".format(base, unit_label) if unit_label else base
 
         self.dgTypes.ItemsSource = ObservableCollection[object]()
@@ -180,7 +174,7 @@ class AutoFoundationWindow(forms.WPFWindow):
         self.btnClose.Click += self.on_close
         self.chkNoLabels.Checked += self.on_no_labels_toggled
         self.chkNoLabels.Unchecked += self.on_no_labels_toggled
-        self.btnBatchFillThickness.Click += self.on_batch_fill_thickness
+        self.btnBatchFillDepth.Click += self.on_batch_fill_depth
 
         # the initial SelectedIndex is set before events are wired, so the
         # layer combos would otherwise stay empty until the user reselects
@@ -233,7 +227,6 @@ class AutoFoundationWindow(forms.WPFWindow):
         layers = cad_read.list_layers(item.Value)
         self.cmbPerimLayer.ItemsSource = [ComboItem(c.Name, LayerSelection([c])) for c in layers]
         self.cmbLabelLayer.ItemsSource = [ComboItem(c.Name, LayerSelection([c])) for c in layers]
-        # pre-select by name hints only; picking in the drawing always wins
         self._preselect_by_hints(self.cmbPerimLayer, cfg.PERIMETER_LAYER_HINTS)
         self._preselect_by_hints(self.cmbLabelLayer, cfg.LABEL_LAYER_HINTS)
 
@@ -251,21 +244,21 @@ class AutoFoundationWindow(forms.WPFWindow):
         self.btnPickLabel.IsEnabled = not no_labels
         self.lblLabelLayer.IsEnabled = not no_labels
 
-    def on_batch_fill_thickness(self, sender, e):
-        text = (self.txtBatchThickness.Text or u"").strip()
+    def on_batch_fill_depth(self, sender, e):
+        text = (self.txtBatchDepth.Text or u"").strip()
         if not text:
-            forms.alert("Type a Thickness value first.", title="Auto Foundation")
+            forms.alert("Type a Depth value first.", title="Auto Pile")
             return
         selected = list(self.dgTypes.SelectedItems or [])
         if not selected:
             forms.alert("Select one or more rows in the grid first "
                         "(Ctrl/Shift-click), then Fill Selected Rows.",
-                        title="Auto Foundation")
+                        title="Auto Pile")
             return
         for row in selected:
-            row.Thickness = text
+            row.Depth = text
         self.dgTypes.Items.Refresh()
-        self.lblStatus.Text = "Filled Thickness for {} row(s).".format(len(selected))
+        self.lblStatus.Text = "Filled Depth for {} row(s).".format(len(selected))
 
     def _load_levels(self):
         levels = list(FilteredElementCollector(doc).OfClass(Level).ToElements())
@@ -277,36 +270,37 @@ class AutoFoundationWindow(forms.WPFWindow):
             items.append(ComboItem(disp, lv))
         self.cmbLevel.ItemsSource = items
         if items:
-            # foundations usually sit on the lowest level
             self.cmbLevel.SelectedIndex = 0
 
     def _update_family_info(self):
-        base_note = ("Footings are placed with their TOP flush with the "
-                     "selected level; thickness extends downward. Rectangles "
-                     "use the footing family (auto-rotated to the CAD); "
-                     "custom/triangular shapes become foundation slabs from "
-                     "the exact outline. ")
-        try:
-            sym = self._kind.find_base_symbol(doc)
-        except Exception:
-            sym = None
-        if sym is None:
-            self.lblFamilyInfo.Text = base_note + (
-                "Family '{}' is not loaded yet — Generate will load it from "
-                "the Revit library automatically.".format(cfg.FAMILY_NAME_CANDIDATES[0]))
-            return
-        params = self._kind.resolve_params(sym)
-        missing = [k for k in ('width', 'length', 'thickness') if not params.get(k)]
-        if missing:
-            self.lblFamilyInfo.Text = base_note + (
-                "WARNING: family '{}' is loaded but its {} parameter(s) could "
-                "not be identified — check af_config.py.".format(
-                    sym.Family.Name, ", ".join(missing)))
-        else:
-            self.lblFamilyInfo.Text = base_note + (
-                "Family '{}' is loaded (parameters: {}, {}, {}).".format(
-                    sym.Family.Name, params['width'], params['length'],
-                    params['thickness']))
+        base_note = ("Piles are placed with their TOP flush with the "
+                     "selected level; depth extends downward. ")
+        parts = []
+        for kind in (self._round_kind, self._square_kind):
+            try:
+                sym = kind.find_base_symbol(doc)
+            except Exception:
+                sym = None
+            if sym is None:
+                parts.append(
+                    "{} family not loaded yet (will be loaded automatically "
+                    "on Generate).".format(kind.display_name))
+                continue
+            params = kind.resolve_params(sym)
+            missing = [k for k in kind.size_param_candidates if not params.get(k)]
+            if not params.get('depth'):
+                missing.append('depth')
+            if missing:
+                parts.append(
+                    "WARNING: {} family '{}' is loaded but its {} "
+                    "parameter(s) could not be identified.".format(
+                        kind.display_name, sym.Family.Name, ", ".join(missing)))
+            else:
+                mat_note = (" (material: {})".format(params['material'])
+                           if params.get('material') else " (no material parameter)")
+                parts.append("{} family '{}' OK{}.".format(
+                    kind.display_name.capitalize(), sym.Family.Name, mat_note))
+        self.lblFamilyInfo.Text = base_note + " ".join(parts)
 
     # ------------------------------------------------------------------
     # Pick handling (state round-trips through the entry-point loop)
@@ -334,13 +328,14 @@ class AutoFoundationWindow(forms.WPFWindow):
         if self.cmbLevel.SelectedItem is not None:
             state['level_id'] = self.cmbLevel.SelectedItem.Value.Id
         for row in (self.dgTypes.ItemsSource or []):
-            state['rows'][row.Label] = (row.Width, row.Length, row.Thickness)
+            state['rows'][row.Label] = (row.Size1, row.Size2, row.Depth)
         return state
 
     def initialize_session(self, state, pending_pick):
         """Called by the entry point on (re)open: restores combo/row state
         captured before a pick, applies the pick result, and re-runs the
-        scan when both layers are known."""
+        scan when the perimeter layer (and, unless no-label mode is on,
+        the label layer) is known."""
         try:
             if state:
                 self._select_import(state.get('import_id'))
@@ -389,78 +384,46 @@ class AutoFoundationWindow(forms.WPFWindow):
         label_item = self.cmbLabelLayer.SelectedItem
         if cad_item is None or perim_item is None:
             forms.alert("Choose a CAD import and a perimeter layer first "
-                        "(or use Pick Layer).", title="Auto Foundation")
+                        "(or use Pick Layer).", title="Auto Pile")
             return
         if not no_labels and label_item is None:
             forms.alert("Choose a label layer first (or use Pick Label), or "
-                        "check 'No labels in this CAD'.", title="Auto Foundation")
+                        "check 'No labels in this CAD'.", title="Auto Pile")
             return
 
-        try:
-            opts = Options()
-            opts.IncludeNonVisibleObjects = True
-            geom = cad_item.Value.get_Geometry(opts)
-        except Exception as ex:
-            forms.alert("Could not read geometry from this CAD import:\n{}".format(ex))
-            return
+        shapes, report = ap_shapes.scan_perimeter_layer(
+            doc, cad_item.Value, perim_item.Value, cfg)
 
-        DBText = cad_read.try_get_text_class()
-        target_layers = {'perim': perim_item.Value}
-        if not no_labels:
-            target_layers['label'] = label_item.Value
-        buckets = cad_read.collect_layer_geometry(doc, geom, target_layers, DBText)
-        polylines = buckets['perim']['polylines']
-        lines = buckets['perim']['lines']
-        texts = buckets['label']['texts'] if not no_labels else []
-
-        tol_ft = cfg.CHAIN_TOLERANCE_MM * cfg.MM_TO_FT
-        outlines = []
-        for pts in polylines:
-            # drop the repeated closing vertex; closure is implicit
-            if len(pts) >= 2 and (abs(pts[0][0] - pts[-1][0]) <= tol_ft
-                                  and abs(pts[0][1] - pts[-1][1]) <= tol_ft):
-                pts = pts[:-1]
-            if len(pts) >= 3:
-                outlines.append(pts)
-        # exploded rectangles: chain loose line segments into closed loops
-        outlines.extend(chain_lines_to_loops(lines, tol_ft))
-
-        min_side = cfg.MIN_FOOTPRINT_SIDE_MM * cfg.MM_TO_FT
-        max_side = cfg.MAX_FOOTPRINT_SIDE_MM * cfg.MM_TO_FT
-        footprints = []
-        skipped = 0
-        for pts in outlines:
-            fp = Footprint(pts, rect_area_ratio=cfg.RECT_AREA_RATIO,
-                          rotation_snap_deg=cfg.ROTATION_SNAP_DEG)
-            if fp.width_ft < min_side or fp.length_ft > max_side:
-                skipped += 1
-                continue
-            footprints.append(fp)
-
-        if not footprints:
+        if not shapes:
             self.dgTypes.ItemsSource = ObservableCollection[object]()
             self._groups = {}
             self.lblInfo.Text = (
-                "No closed outlines were found on layer '{}' (checked {} "
-                "polylines and {} loose lines; {} filtered out by size). Check "
-                "the layer or the size limits in af_config.py.".format(
-                    perim_item.Display, len(polylines), len(lines), skipped))
-            self.lblStatus.Text = "Scan found 0 footings."
+                "No circles, closed polylines, or block references were "
+                "found on layer '{}'. Pick a different layer, or check the "
+                "size limits in ap_config.py.".format(perim_item.Display))
+            self.lblStatus.Text = "Scan found 0 piles."
             return
 
         if no_labels:
+            # skip CAD text entirely -- every pile is named purely from
+            # its own derived size (D800, S800, WxL)
             matched = 0
             clean_texts = []
             text_source = "none (no-label mode)"
-            self._groups = self._kind.group_by_size_only(footprints)
+            groups = ap_shapes.group_by_size_only(shapes)
         else:
-            raw_texts = [(pos.X, pos.Y, val) for pos, val in texts]
+            # --- read labels: CAD geometry first, DXF-export fallback ---
+            opts = Options()
+            opts.IncludeNonVisibleObjects = True
+            geom = cad_item.Value.get_Geometry(opts)
+            DBText = cad_read.try_get_text_class()
+            buckets = cad_read.collect_layer_geometry(
+                doc, geom, {'label': label_item.Value}, DBText)
+            raw_texts = [(pos.X, pos.Y, val) for pos, val in buckets['label']['texts']]
             text_source = "CAD geometry"
             if not raw_texts:
-                # Revit's geometry API does not expose DWG text; round-trip
-                # the active view through a DXF export instead (pp_common.dxf_text)
                 try:
-                    raw_texts = af_dxf.read_cad_texts(doc, label_item.Display)
+                    raw_texts = pp_dxf.read_cad_texts(doc, label_item.Display)
                     text_source = "DXF export"
                 except Exception as ex:
                     _safe_log("DXF text fallback failed: {}".format(ex))
@@ -470,72 +433,95 @@ class AutoFoundationWindow(forms.WPFWindow):
                 v = (val or u"").strip()
                 if cfg.LABEL_UPPERCASE:
                     v = v.upper()
-                if not v:
-                    continue
-                if cfg.LABEL_REGEX and not re.match(cfg.LABEL_REGEX, v):
-                    continue
-                clean_texts.append((tx, ty, v))
+                if v and (not cfg.LABEL_REGEX or re.match(cfg.LABEL_REGEX, v)):
+                    clean_texts.append((tx, ty, v))
 
-            matched = self._kind.match_labels(footprints, clean_texts)
-            self._groups = self._kind.group_footprints(footprints)
+            matched, groups = ap_shapes.match_and_group(shapes, clean_texts, cfg)
+
+        self._groups = groups
 
         mismatch_tol = cfg.SIZE_MISMATCH_TOLERANCE_MM * cfg.MM_TO_FT
         coll = ObservableCollection[object]()
-        for label, fps in self._groups.items():
-            w = max(fp.width_ft for fp in fps)
-            l = max(fp.length_ft for fp in fps)
-            # a group is placed as a rectangular family only when every
-            # footing in it is rectangular; otherwise the exact outlines
-            # become foundation slabs
-            is_rect = all(fp.is_rectangle for fp in fps)
-            rotated = sum(1 for fp in fps
-                          if fp.is_rectangle and abs(fp.rotation) > 1e-6
-                          and abs(abs(fp.rotation) - 1.5707963) > 1e-6)
-            notes = []
-            if not is_rect:
-                notes.append("exact CAD outline used; W/L for reference")
-            elif rotated:
-                notes.append("{} rotated to match CAD".format(rotated))
-            if any(abs(fp.width_ft - w) > mismatch_tol
-                   or abs(fp.length_ft - l) > mismatch_tol for fp in fps):
-                notes.append("sizes varied in CAD; largest used")
-            if is_rect:
-                w_mm, w_rounded = round_dimension_mm(w / cfg.MM_TO_FT)
-                l_mm, l_rounded = round_dimension_mm(l / cfg.MM_TO_FT)
-                if w_rounded or l_rounded:
-                    notes.append("rounded to a clean size (raw {:.0f}x{:.0f}mm)".format(
-                        w / cfg.MM_TO_FT, l / cfg.MM_TO_FT))
-                w = w_mm * cfg.MM_TO_FT
-                l = l_mm * cfg.MM_TO_FT
-            th_text = ""
-            if label in cfg.DEFAULT_THICKNESS_MM:
-                th_text = fmt_length(cfg.DEFAULT_THICKNESS_MM[label] * cfg.MM_TO_FT)
-            row = TypeRow(label, len(fps), "Rectangle" if is_rect else "Custom",
-                          fmt_length(w), fmt_length(l), th_text, "; ".join(notes))
+        for label, shs in groups.items():
+            row = self._build_row(label, shs, clean_texts, mismatch_tol)
             saved = self._saved_rows.get(label)
             if saved:
-                row.Width, row.Length, row.Thickness = saved
+                row.Size1, row.Size2, row.Depth = saved
             coll.Add(row)
         self.dgTypes.ItemsSource = coll
         self._saved_rows = {}
 
-        text_note = ""
+        skipped_note = ""
+        if report['blocks_unresolved']:
+            skipped_note = " {} block reference(s) could not be classified.".format(
+                report['blocks_unresolved'])
+
         if no_labels:
-            text_note = " No-label mode — grouped purely by shape/size."
-        elif not clean_texts:
-            text_note = (" NOTE: no CAD text could be read (geometry API and "
-                         "DXF export both empty); footings were grouped by "
-                         "size instead.")
+            label_note = "no-label mode — grouped purely by Diameter/Width x Length."
+        else:
+            label_note = "{} labelled from CAD text ({} text entities via {}).".format(
+                matched, len(clean_texts), text_source)
+
         self.lblInfo.Text = (
-            "Found {} footing(s) in {} type group(s) on layer '{}'; {} labelled "
-            "from CAD text ({} text entities via {}).{}{} Review the "
-            "sizes, fill in Thickness and click Generate.".format(
-                len(footprints), coll.Count, perim_item.Display, matched,
-                len(clean_texts), text_source,
-                " {} outline(s) were filtered out by size.".format(skipped) if skipped else "",
-                text_note))
-        self.lblStatus.Text = "Scan complete: {} footing(s), {} type(s).".format(
-            len(footprints), coll.Count)
+            "Found {} pile(s) in {} type group(s) on layer '{}' "
+            "(circles: {circles}, square polylines: {square_polylines}, "
+            "rect polylines: {rect_polylines}, custom: {custom_polylines}, "
+            "blocks: {block_total}); {}{} Review the sizes, fill in Depth "
+            "and click Generate.".format(
+                len(shapes), coll.Count, perim_item.Display, label_note,
+                skipped_note,
+                block_total=(report['blocks_circle'] + report['blocks_square']
+                            + report['blocks_rect'] + report['blocks_custom']),
+                **report))
+        self.lblStatus.Text = "Scan complete: {} pile(s), {} type(s).".format(
+            len(shapes), coll.Count)
+
+    def _build_row(self, label, shapes, clean_texts, mismatch_tol):
+        s0 = shapes[0]
+        via_cad_text = any(t[2] == label for t in clean_texts)
+        named_via = "CAD text" if via_cad_text else "size-derived"
+
+        rounded = False
+        if isinstance(s0, ap_shapes.CircleShape):
+            shape_kind = "Circle"
+            d = max(s.diameter_ft for s in shapes)
+            d_mm, rounded = round_dimension_mm(d / MM_TO_FT)
+            d = d_mm * MM_TO_FT
+            size1, size2 = fmt_length(d), ""
+            mismatch = any(abs(s.diameter_ft - d) > mismatch_tol for s in shapes)
+        elif isinstance(s0, ap_shapes.SquareShape):
+            shape_kind = "Square"
+            w = max(s.width_ft for s in shapes)
+            l = max(s.length_ft for s in shapes)
+            is_square = all(s.is_square for s in shapes)
+            w_mm, w_rounded = round_dimension_mm(w / MM_TO_FT)
+            l_mm, l_rounded = round_dimension_mm(l / MM_TO_FT)
+            w, l = w_mm * MM_TO_FT, l_mm * MM_TO_FT
+            rounded = w_rounded or l_rounded
+            size1 = fmt_length(w)
+            size2 = "" if is_square else fmt_length(l)
+            mismatch = any(abs(s.width_ft - w) > mismatch_tol
+                          or abs(s.length_ft - l) > mismatch_tol for s in shapes)
+        else:
+            shape_kind = "Custom"
+            w = max(s.width_ft for s in shapes)
+            l = max(s.length_ft for s in shapes)
+            size1, size2 = fmt_length(w), fmt_length(l)
+            mismatch = any(abs(s.width_ft - w) > mismatch_tol
+                          or abs(s.length_ft - l) > mismatch_tol for s in shapes)
+
+        notes = []
+        if shape_kind == "Custom":
+            notes.append("no custom pile family yet; generation will skip this type")
+        if rounded:
+            notes.append("rounded to a clean size")
+        if mismatch:
+            notes.append("sizes varied in CAD; largest used")
+        if len(set(s.display_name for s in shapes)) > 1:
+            notes.append("mixed shapes under one label; review")
+
+        return TypeRow(label, len(shapes), shape_kind, size1, size2, "",
+                      named_via, "; ".join(notes))
 
     # ------------------------------------------------------------------
     # Generate
@@ -545,97 +531,132 @@ class AutoFoundationWindow(forms.WPFWindow):
         coll = self.dgTypes.ItemsSource
         if coll is None or coll.Count == 0:
             forms.alert("Nothing to generate — pick the layers and click "
-                        "Apply first.", title="Auto Foundation")
+                        "Apply first.", title="Auto Pile")
             return
         level_item = self.cmbLevel.SelectedItem
         if level_item is None:
-            forms.alert("Choose a base level.", title="Auto Foundation")
+            forms.alert("Choose a base level.", title="Auto Pile")
             return
 
-        rect_groups = []
-        custom_groups = []
+        round_groups = []
+        square_groups = []
+        skipped_custom = []
         errors = []
         for row in coll:
             if not row.Include:
                 continue
-            is_rect = row.Shape == "Rectangle"
-            w = l = 0.0
-            if is_rect:
-                try:
-                    w = display_to_internal_length(row.Width)
-                    l = display_to_internal_length(row.Length)
-                except Exception:
-                    errors.append(u"'{}': invalid Width/Length.".format(row.Label))
-                    continue
-            th_text = (row.Thickness or u"").strip()
-            if not th_text:
-                errors.append(u"'{}': Thickness is required.".format(row.Label))
+            if row.Shape == "Custom":
+                skipped_custom.append(row.Label)
+                continue
+
+            depth_text = (row.Depth or u"").strip()
+            if not depth_text:
+                errors.append(u"'{}': Depth is required.".format(row.Label))
                 continue
             try:
-                th = display_to_internal_length(th_text)
+                depth_ft = display_to_internal_length(depth_text)
             except Exception:
-                errors.append(u"'{}': invalid Thickness '{}'.".format(row.Label, row.Thickness))
+                errors.append(u"'{}': invalid Depth '{}'.".format(row.Label, row.Depth))
                 continue
-            if th <= 0 or (is_rect and (w <= 0 or l <= 0)):
-                errors.append(u"'{}': Width, Length and Thickness must be "
-                              u"greater than zero.".format(row.Label))
+            if depth_ft <= 0:
+                errors.append(u"'{}': Depth must be greater than zero.".format(row.Label))
                 continue
-            group = {
-                'label': row.Label,
-                # keep the convention: longer side = Length
-                'width_ft': min(w, l),
-                'length_ft': max(w, l),
-                'thickness_ft': th,
-                'footprints': self._groups.get(row.Label, []),
-            }
-            (rect_groups if is_rect else custom_groups).append(group)
+
+            shapes = self._groups.get(row.Label, [])
+            if row.Shape == "Circle":
+                try:
+                    d_ft = display_to_internal_length(row.Size1)
+                except Exception:
+                    errors.append(u"'{}': invalid Diameter '{}'.".format(row.Label, row.Size1))
+                    continue
+                if d_ft <= 0:
+                    errors.append(u"'{}': Diameter must be greater than zero.".format(row.Label))
+                    continue
+                round_groups.append({
+                    'label': row.Label, 'diameter_ft': d_ft,
+                    'depth_ft': depth_ft, 'shapes': shapes,
+                })
+            else:  # "Square" (includes true squares and W x L rectangles)
+                try:
+                    w_ft = display_to_internal_length(row.Size1)
+                except Exception:
+                    errors.append(u"'{}': invalid Width '{}'.".format(row.Label, row.Size1))
+                    continue
+                size2_text = (row.Size2 or u"").strip()
+                if size2_text:
+                    try:
+                        l_ft = display_to_internal_length(size2_text)
+                    except Exception:
+                        errors.append(u"'{}': invalid Length '{}'.".format(row.Label, row.Size2))
+                        continue
+                else:
+                    l_ft = w_ft
+                if w_ft <= 0 or l_ft <= 0:
+                    errors.append(u"'{}': Width and Length must be greater "
+                                  u"than zero.".format(row.Label))
+                    continue
+                square_groups.append({
+                    'label': row.Label, 'width_ft': min(w_ft, l_ft),
+                    'length_ft': max(w_ft, l_ft), 'depth_ft': depth_ft,
+                    'shapes': shapes,
+                })
 
         if errors:
             forms.alert(u"Fix these rows first:\n\n{}".format(u"\n".join(errors)),
-                        title="Auto Foundation")
+                        title="Auto Pile")
             return
-        if not rect_groups and not custom_groups:
-            forms.alert("No rows are checked for generation.", title="Auto Foundation")
+        if not round_groups and not square_groups:
+            msg = "No rows are checked for generation."
+            if skipped_custom:
+                msg += (u"\n\n{} custom-shape type(s) were skipped (no "
+                       u"custom pile family yet): {}".format(
+                           len(skipped_custom), u", ".join(skipped_custom)))
+            forms.alert(msg, title="Auto Pile")
             return
 
         level = level_item.Value
-        groups_total = len(rect_groups) + len(custom_groups)
-        t = Transaction(doc, "Auto Foundation: Generate")
+        groups_total = len(round_groups) + len(square_groups)
+        t = Transaction(doc, "Auto Pile: Generate")
         t.Start()
         try:
             created = 0
             warnings = []
-            if rect_groups:
-                n, warn = self._kind.generate(doc, level, rect_groups)
+            if round_groups:
+                n, warn = self._round_kind.generate(doc, level, round_groups,
+                                                    bundle_dir=_BUNDLE_DIR)
                 created += n
                 warnings.extend(warn)
-            if custom_groups:
-                n, warn = self._kind_custom.generate(doc, level, custom_groups)
+            if square_groups:
+                n, warn = self._square_kind.generate(doc, level, square_groups,
+                                                     bundle_dir=_BUNDLE_DIR)
                 created += n
                 warnings.extend(warn)
             t.Commit()
         except ValueError as ex:
             t.RollBack()
-            forms.alert(str(ex), title="Auto Foundation")
+            forms.alert(str(ex), title="Auto Pile")
             return
         except Exception as ex:
             t.RollBack()
             _safe_log("Generate failed: {}".format(ex))
-            forms.alert("Failed to generate foundations:\n{}".format(ex),
-                        title="Auto Foundation")
+            forms.alert("Failed to generate piles:\n{}".format(ex), title="Auto Pile")
             self.lblStatus.Text = "Failed."
             return
 
         self._update_family_info()
+        if skipped_custom:
+            warnings.append(u"Skipped {} custom-shape type(s) (no custom "
+                            u"pile family yet): {}".format(
+                                len(skipped_custom), u", ".join(skipped_custom)))
         if warnings:
             forms.alert(
-                u"Placed {} footing(s) in {} type(s).\n\nSome items had "
+                u"Placed {} pile(s) in {} type(s).\n\nSome items had "
                 u"problems:\n{}".format(created, groups_total, u"\n".join(warnings)),
-                title="Auto Foundation")
-            self.lblStatus.Text = "Placed {} footing(s), {} warning(s).".format(
+                title="Auto Pile")
+            self.lblStatus.Text = "Placed {} pile(s), {} warning(s).".format(
                 created, len(warnings))
         else:
-            self.lblStatus.Text = "Placed {} footing(s) in {} type(s) on {}.".format(
+            self.lblStatus.Text = "Placed {} pile(s) in {} type(s) on {}.".format(
                 created, groups_total, get_name(level))
 
     def on_close(self, sender, e):
@@ -665,21 +686,21 @@ def _pick_cad_layers(prompt):
         if str(ex) == "not_cad":
             forms.alert("The picked element is not part of an imported/linked "
                         "CAD drawing. Pick an entity on the CAD.",
-                        title="Auto Foundation")
+                        title="Auto Pile")
         elif str(ex) == "mixed_imports":
             forms.alert("All picks in one selection must be on the SAME CAD "
                         "import. Pick entities from one import at a time.",
-                        title="Auto Foundation")
+                        title="Auto Pile")
         else:
             _safe_log("_pick_cad_layers failed: {}".format(ex))
             forms.alert("Could not read the layer of a picked object.",
-                        title="Auto Foundation")
+                        title="Auto Pile")
         return None
 
 
 PICK_PROMPTS = {
-    'perimeter': "Pick one or more footing perimeter curves (Enter to finish, Esc to cancel)",
-    'label': "Pick one or more footing label texts (F1, F2, ...) (Enter to finish, Esc to cancel)",
+    'perimeter': "Pick one or more pile circles/outlines/blocks (Enter to finish, Esc to cancel)",
+    'label': "Pick one or more pile/cap labels (Enter to finish, Esc to cancel)",
 }
 
 try:
@@ -690,7 +711,7 @@ try:
     state = None
     pending_pick = None
     while True:
-        window = AutoFoundationWindow(xaml_file)
+        window = AutoPileWindow(xaml_file)
         window.initialize_session(state, pending_pick)
         pending_pick = None
         window.ShowDialog()
