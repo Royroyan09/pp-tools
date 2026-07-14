@@ -3,11 +3,13 @@
 
 Screen-captures the active view's viewport (not the whole Revit window),
 optionally crops a strip off the right edge (e.g. to cut out the
-ViewCube/navigation bar in 3D views), and saves it as a PNG via a save
-dialog.
-"""
-import re
+ViewCube/navigation bar in 3D views) using the amount set via the
+"Set Capture Crop" button, and saves it as a PNG via a save dialog.
 
+Captures immediately with no dialog beforehand, so the active view's
+window is grabbed exactly as it is at the moment of the click - nothing
+is shown on screen that could get in the way of the capture.
+"""
 import clr
 clr.AddReference("System.Drawing")
 
@@ -17,9 +19,10 @@ from System.Threading import Thread
 
 from pyrevit import revit, forms, script
 
+from capture_crop import get_crop_pixels
+
 uidoc = revit.uidoc
 active_view = uidoc.ActiveView
-config = script.get_config()
 
 uiview = None
 for uv in uidoc.GetOpenUIViews():
@@ -34,50 +37,7 @@ rect = uiview.GetWindowRectangle()  # Autodesk.Revit.UI.Rectangle: Left/Top/Righ
 width = rect.Right - rect.Left
 height = rect.Bottom - rect.Top
 
-CROP_PATTERN = re.compile(r'^\s*([0-9]*\.?[0-9]+)\s*(mm|cm|px)?\s*$', re.IGNORECASE)
-
-
-def parse_crop(text, dpi_x):
-    """Returns crop amount in pixels, or None if text is empty/invalid."""
-    if not text or not text.strip():
-        return 0
-    match = CROP_PATTERN.match(text)
-    if not match:
-        return None
-    value = float(match.group(1))
-    unit = (match.group(2) or 'px').lower()
-    if unit == 'mm':
-        return int(round(value / 25.4 * dpi_x))
-    if unit == 'cm':
-        return int(round(value / 2.54 * dpi_x))
-    return int(round(value))
-
-
-# resolve screen DPI (needed to convert mm/cm to pixels)
-g_probe = Graphics.FromImage(Bitmap(1, 1))
-dpi_x = g_probe.DpiX
-g_probe.Dispose()
-
-default_crop = config.get_option('right_crop', '0px')
-crop_text = forms.ask_for_string(
-    default=default_crop,
-    prompt="Crop off the right edge (e.g. '50mm', '2cm', '150px'). "
-           "Useful for cutting out the ViewCube/navigation bar. "
-           "Leave as 0 for no crop.",
-    title="Capture View")
-
-if crop_text is None:
-    script.exit()
-
-crop_px = parse_crop(crop_text, dpi_x)
-if crop_px is None:
-    forms.alert("Could not understand '{}'. Use a number optionally "
-               "followed by mm, cm, or px.".format(crop_text),
-               exitscript=True)
-
-crop_px = max(0, min(crop_px, width - 1))
-config.right_crop = crop_text
-script.save_config()
+crop_px = max(0, min(get_crop_pixels(), width - 1))
 
 # let the ribbon popup/tooltip from the button click disappear and the
 # view repaint before grabbing the screen; Join (unlike Sleep) pumps

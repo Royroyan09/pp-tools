@@ -1,0 +1,6 @@
+title: Set Capture Crop
+tooltip: >
+  Sets how much to trim off the right edge of Capture View screenshots
+  (mm, cm, or px). Useful for cutting out the ViewCube/navigation bar.
+  Does not take a screenshot itself.
+author: PP
